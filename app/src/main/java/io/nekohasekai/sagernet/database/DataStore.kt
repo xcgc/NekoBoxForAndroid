@@ -85,11 +85,11 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)
     var serviceMode by configurationStore.string(Key.SERVICE_MODE) { Key.MODE_VPN }
 
-//    var domainStrategy by configurationStore.string(Key.DOMAIN_STRATEGY) { "AsIs" }
+    //    var domainStrategy by configurationStore.string(Key.DOMAIN_STRATEGY) { "AsIs" }
     var trafficSniffing by configurationStore.boolean(Key.TRAFFIC_SNIFFING) { true }
     var resolveDestination by configurationStore.boolean(Key.RESOLVE_DESTINATION)
 
-//    var tcpKeepAliveInterval by configurationStore.stringToInt(Key.TCP_KEEP_ALIVE_INTERVAL) { 15 }
+    //    var tcpKeepAliveInterval by configurationStore.stringToInt(Key.TCP_KEEP_ALIVE_INTERVAL) { 15 }
     var mtu by configurationStore.stringToInt(Key.MTU) { 9000 }
 
     var bypassLan by configurationStore.boolean(Key.BYPASS_LAN)
@@ -97,6 +97,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var allowAccess by configurationStore.boolean(Key.ALLOW_ACCESS)
     var speedInterval by configurationStore.stringToInt(Key.SPEED_INTERVAL)
+    var showGroupInNotification by configurationStore.boolean("showGroupInNotification")
 
     var remoteDns by configurationStore.string(Key.REMOTE_DNS) { "https://8.8.8.8/dns-query" }
     var directDns by configurationStore.string(Key.DIRECT_DNS) { "https://223.5.5.5/dns-query" }
@@ -225,15 +226,20 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var routeSource by profileCacheStore.string(Key.ROUTE_SOURCE)
     var routeProtocol by profileCacheStore.string(Key.ROUTE_PROTOCOL)
     var routeOutbound by profileCacheStore.stringToInt(Key.ROUTE_OUTBOUND)
-    var routeOutboundRule by profileCacheStore.long(Key.ROUTE_OUTBOUND_RULE)
+    var routeOutboundRule by profileCacheStore.long(Key.ROUTE_OUTBOUND + "Long")
     var routePackages by profileCacheStore.string(Key.ROUTE_PACKAGES)
 
+    var frontProxy by profileCacheStore.long(Key.GROUP_FRONT_PROXY + "Long")
+    var landingProxy by profileCacheStore.long(Key.GROUP_LANDING_PROXY + "Long")
+    var frontProxyTmp by profileCacheStore.stringToInt(Key.GROUP_FRONT_PROXY)
+    var landingProxyTmp by profileCacheStore.stringToInt(Key.GROUP_LANDING_PROXY)
 
     var serverConfig by profileCacheStore.string(Key.SERVER_CONFIG)
 
     var groupName by profileCacheStore.string(Key.GROUP_NAME)
     var groupType by profileCacheStore.stringToInt(Key.GROUP_TYPE)
     var groupOrder by profileCacheStore.stringToInt(Key.GROUP_ORDER)
+    var groupIsSelector by profileCacheStore.boolean(Key.GROUP_IS_SELECTOR)
 
     var subscriptionLink by profileCacheStore.string(Key.SUBSCRIPTION_LINK)
     var subscriptionForceResolve by profileCacheStore.boolean(Key.SUBSCRIPTION_FORCE_RESOLVE)

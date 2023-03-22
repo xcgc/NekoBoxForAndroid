@@ -13,6 +13,7 @@ import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.aidl.ISagerNetServiceCallback
 import io.nekohasekai.sagernet.bg.proto.ProxyInstance
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.plugin.PluginManager
@@ -47,7 +48,7 @@ class BaseService {
         val receiver = broadcastReceiver { _, intent ->
             when (intent.action) {
                 Intent.ACTION_SHUTDOWN -> service.persistStats()
-                Action.RELOAD -> service.forceLoad()
+                Action.RELOAD -> service.reload()
                 Action.SWITCH_WAKE_LOCK -> runOnDefaultDispatcher { service.switchWakeLock() }
                 else -> service.stopRunner()
             }
@@ -82,7 +83,7 @@ class BaseService {
             cb.updateWakeLockStatus(data?.proxy?.service?.wakeLock != null)
         }
 
-        val boardcastMutex = Mutex()
+        private val boardcastMutex = Mutex()
 
         suspend fun broadcast(work: (ISagerNetServiceCallback) -> Unit) {
             boardcastMutex.withLock {
@@ -143,9 +144,23 @@ class BaseService {
         fun onBind(intent: Intent): IBinder? =
             if (intent.action == Action.SERVICE) data.binder else null
 
-        fun forceLoad() {
+        fun reload() {
             if (DataStore.selectedProxy == 0L) {
                 stopRunner(false, (this as Context).getString(R.string.profile_empty))
+            }
+            if (canReloadSelector()) {
+                val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+                val tag = data.proxy!!.config.profileTagMap[ent?.id] ?: ""
+                if (tag.isNotBlank() && ent != null) {
+                    val success = data.proxy!!.box.selectOutbound(tag)
+                    if (success) runOnDefaultDispatcher {
+                        data.proxy!!.looper?.selectMain(ent.id)
+                        data.binder.broadcast {
+                            it.stateChanged(-1, ServiceNotification.genTitle(ent), null)
+                        }
+                    }
+                }
+                return
             }
             val s = data.state
             when {
@@ -153,6 +168,18 @@ class BaseService {
                 s.canStop -> stopRunner(true)
                 else -> Logs.w("Illegal state $s when invoking use")
             }
+        }
+
+        fun canReloadSelector(): Boolean {
+            if ((data.proxy?.config?.selectorGroupId ?: -1L) < 0) return false
+            val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy) ?: return false
+            val tmpBox = ProxyInstance(ent)
+            tmpBox.buildConfigTmp()
+            if (tmpBox.lastSelectorGroupId == data.proxy?.lastSelectorGroupId) {
+                return true
+                // TODO if profile changed?
+            }
+            return false
         }
 
         suspend fun startProcesses() {
@@ -294,7 +321,7 @@ class BaseService {
             data.changeState(State.Connecting)
             runOnMainDispatcher {
                 try {
-                    data.notification = createNotification(profile.displayName())
+                    data.notification = createNotification(ServiceNotification.genTitle(profile))
 
                     Executable.killAll()    // clean up old processes
                     preInit()

@@ -15,11 +15,11 @@ import io.nekohasekai.sagernet.fmt.naive.NaiveBean
 import io.nekohasekai.sagernet.fmt.naive.buildNaiveConfig
 import io.nekohasekai.sagernet.fmt.naive.toUri
 import io.nekohasekai.sagernet.fmt.shadowsocks.*
+import moe.matsuri.nb4a.proxy.shadowtls.ShadowTLSBean
 import io.nekohasekai.sagernet.fmt.socks.SOCKSBean
 import io.nekohasekai.sagernet.fmt.socks.toUri
 import io.nekohasekai.sagernet.fmt.ssh.SSHBean
 import io.nekohasekai.sagernet.fmt.trojan.TrojanBean
-import io.nekohasekai.sagernet.fmt.trojan.toUri
 import io.nekohasekai.sagernet.fmt.trojan_go.TrojanGoBean
 import io.nekohasekai.sagernet.fmt.trojan_go.buildTrojanGoConfig
 import io.nekohasekai.sagernet.fmt.trojan_go.toUri
@@ -31,13 +31,10 @@ import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.applyDefaultValues
 import io.nekohasekai.sagernet.ui.profile.*
 import moe.matsuri.nb4a.Protocols
-import moe.matsuri.nb4a.proxy.neko.*
 import moe.matsuri.nb4a.proxy.config.ConfigBean
 import moe.matsuri.nb4a.proxy.config.ConfigSettingActivity
-import moe.matsuri.nb4a.proxy.neko.NekoBean
-import moe.matsuri.nb4a.proxy.neko.NekoSettingActivity
-import moe.matsuri.nb4a.proxy.neko.haveStandardLink
-import moe.matsuri.nb4a.proxy.neko.shareLink
+import moe.matsuri.nb4a.proxy.neko.*
+import moe.matsuri.nb4a.proxy.shadowtls.ShadowTLSSettingsActivity
 
 @Entity(
     tableName = "proxy_entities", indices = [Index("groupId", name = "groupId")]
@@ -64,6 +61,7 @@ data class ProxyEntity(
     var tuicBean: TuicBean? = null,
     var sshBean: SSHBean? = null,
     var wgBean: WireGuardBean? = null,
+    var shadowTLSBean: ShadowTLSBean? = null,
     var chainBean: ChainBean? = null,
     var nekoBean: NekoBean? = null,
     var configBean: ConfigBean? = null,
@@ -74,16 +72,17 @@ data class ProxyEntity(
         const val TYPE_HTTP = 1
         const val TYPE_SS = 2
         const val TYPE_VMESS = 4
-
         const val TYPE_TROJAN = 6
+
         const val TYPE_TROJAN_GO = 7
         const val TYPE_NAIVE = 9
         const val TYPE_HYSTERIA = 15
+        const val TYPE_TUIC = 20
 
         const val TYPE_SSH = 17
         const val TYPE_WG = 18
 
-        const val TYPE_TUIC = 20
+        const val TYPE_SHADOWTLS = 19
 
         const val TYPE_CONFIG = 998
         const val TYPE_NEKO = 999
@@ -106,10 +105,6 @@ data class ProxyEntity(
             }
         }
     }
-
-    @Ignore
-    @Transient
-    var info: String = ""
 
     @Ignore
     @Transient
@@ -171,6 +166,7 @@ data class ProxyEntity(
             TYPE_SSH -> sshBean = KryoConverters.sshDeserialize(byteArray)
             TYPE_WG -> wgBean = KryoConverters.wireguardDeserialize(byteArray)
             TYPE_TUIC -> tuicBean = KryoConverters.tuicDeserialize(byteArray)
+            TYPE_SHADOWTLS -> shadowTLSBean = KryoConverters.shadowTLSDeserialize(byteArray)
             TYPE_CHAIN -> chainBean = KryoConverters.chainDeserialize(byteArray)
             TYPE_NEKO -> nekoBean = KryoConverters.nekoDeserialize(byteArray)
             TYPE_CONFIG -> configBean = KryoConverters.configDeserialize(byteArray)
@@ -189,6 +185,7 @@ data class ProxyEntity(
         TYPE_SSH -> "SSH"
         TYPE_WG -> "WireGuard"
         TYPE_TUIC -> "TUIC"
+        TYPE_SHADOWTLS -> "ShadowTLS"
         TYPE_CHAIN -> chainName
         TYPE_NEKO -> nekoBean!!.displayType()
         TYPE_CONFIG -> configBean!!.displayType()
@@ -211,6 +208,7 @@ data class ProxyEntity(
             TYPE_SSH -> sshBean
             TYPE_WG -> wgBean
             TYPE_TUIC -> tuicBean
+            TYPE_SHADOWTLS -> shadowTLSBean
             TYPE_CHAIN -> chainBean
             TYPE_NEKO -> nekoBean
             TYPE_CONFIG -> configBean
@@ -230,28 +228,25 @@ data class ProxyEntity(
             is TuicBean -> false
             is SSHBean -> false
             is WireGuardBean -> false
+            is ShadowTLSBean -> false
             is NekoBean -> nekoBean!!.haveStandardLink()
             is ConfigBean -> false
             else -> true
         }
     }
 
-    fun toLink(compact: Boolean = false): String? = with(requireBean()) {
+    fun toStdLink(compact: Boolean = false): String = with(requireBean()) {
         when (this) {
             is SOCKSBean -> toUri()
             is HttpBean -> toUri()
             is ShadowsocksBean -> toUri()
-            is VMessBean -> if (compact) toV2rayN() else toUri()
-            is TrojanBean -> toUri()
+            is VMessBean -> toUriVMessVLESSTrojan(false)
+            is TrojanBean -> toUriVMessVLESSTrojan(true)
             is TrojanGoBean -> toUri()
             is NaiveBean -> toUri()
             is HysteriaBean -> toUri()
-            is SSHBean -> toUniversalLink()
-            is WireGuardBean -> toUniversalLink()
-            is TuicBean -> toUniversalLink()
-            is ConfigBean -> toUniversalLink()
             is NekoBean -> shareLink()
-            else -> null
+            else -> toUniversalLink()
         }
     }
 
@@ -333,6 +328,7 @@ data class ProxyEntity(
         sshBean = null
         wgBean = null
         tuicBean = null
+        shadowTLSBean = null
         chainBean = null
         configBean = null
         nekoBean = null
@@ -382,6 +378,10 @@ data class ProxyEntity(
                 type = TYPE_TUIC
                 tuicBean = bean
             }
+            is ShadowTLSBean -> {
+                type = TYPE_SHADOWTLS
+                shadowTLSBean = bean
+            }
             is ChainBean -> {
                 type = TYPE_CHAIN
                 chainBean = bean
@@ -413,6 +413,7 @@ data class ProxyEntity(
                 TYPE_SSH -> SSHSettingsActivity::class.java
                 TYPE_WG -> WireGuardSettingsActivity::class.java
                 TYPE_TUIC -> TuicSettingsActivity::class.java
+                TYPE_SHADOWTLS -> ShadowTLSSettingsActivity::class.java
                 TYPE_CHAIN -> ChainSettingsActivity::class.java
                 TYPE_NEKO -> NekoSettingActivity::class.java
                 TYPE_CONFIG -> ConfigSettingActivity::class.java
